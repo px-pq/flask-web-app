@@ -1,80 +1,59 @@
-# 工作流名称（可自定义）
 name: Deploy Flask App to Touge Server
-
-# 触发条件：推送到main分支时执行
 on:
   push:
     branches:
       - main
-
-# 定义作业（jobs）：只有1个deploy作业，运行在Ubuntu环境
 jobs:
-  deploy:  # 作业名称
-    runs-on: ubuntu-latest  # 运行环境
-    timeout-minutes: 10     # 超时时间
-
-    # 作业的步骤列表（steps）：按顺序执行
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
-      # 步骤1：拉取GitHub仓库代码
       - name: Checkout code
         uses: actions/checkout@v4
         with:
           fetch-depth: 1
-
-      # 步骤2：配置Python环境（与你项目匹配的版本）
       - name: Set up Python 3.11
         uses: actions/setup-python@v5
         with:
           python-version: '3.11'
           cache: 'pip'
           cache-dependency-path: requirements.txt
-
-      # 步骤3：安装依赖并执行测试（确保代码无问题）
       - name: Install dependencies and run tests
         run: |
           python -m pip install --upgrade pip
           pip install -r requirements.txt
           pip install pytest==8.4.1
           pytest tests/ -v
-        continue-on-error: false  # 测试失败则终止工作流
-
-      # 步骤4：SSH部署到头歌服务器（你需要的步骤，已修复格式）
-      - name: Deploy to Touge Server via SSH
+        continue-on-error: false
+      - name: Deploy to Touge Server via SSH (Port 50241)
         run: |
-          # 1. 配置SSH目录和权限
-          mkdir -p ~/.ssh && chmod 700 ~/.ssh
+          # 配置SSH环境（强制兼容RSA私钥）
+          mkdir -p ~/.ssh
           
-          # 2. 写入私钥（确保格式完整）
-          echo "${{ secrets.TOUGE_SSH_PRIVATE_KEY }}" > ~/.ssh/id_rsa
-          chmod 600 ~/.ssh/id_rsa  # SSH强制要求私钥权限为600
+          # 写入RSA私钥（用printf确保格式完整）
+          printf "%s\n" "${{ secrets.TOUGE_SSH_PRIVATE_KEY }}" > ~/.ssh/id_rsa
           
-          # 3. 扫描服务器主机密钥（避免首次连接提示）
-          ssh-keyscan -p ${{ secrets.TOUGE_SSH_PORT }} -H ${{ secrets.TOUGE_SERVER_IP }} >> ~/.ssh/known_hosts
+          # 强制设置权限（SSH协议要求）
+          chmod 600 ~/.ssh/id_rsa
+          
+          # 扫描主机密钥（指定端口）
+          ssh-keyscan -p 45941 -H ${{ secrets.TOUGE_SERVER_IP }} >> ~/.ssh/known_hosts
           echo "SSH环境配置完成，尝试连接服务器..."
-          
-          # 4. SSH连接服务器并执行部署命令
-          ssh -v -p ${{ secrets.TOUGE_SSH_PORT }} \
-              -o HostKeyAlgorithms=+ssh-rsa \
-              -o PubkeyAcceptedAlgorithms=+ssh-rsa \
-              root@${{ secrets.TOUGE_SERVER_IP }} << 'EOF'
-            set -e  # 命令执行失败则退出
+          # 连接服务器执行部署（添加-o选项兼容旧版SSH）
+          ssh -v -p 45941 -o HostKeyAlgorithms=+ssh-rsa -o PubkeyAcceptedAlgorithms=+ssh-rsa root@${{ secrets.TOUGE_SERVER_IP }} << 'EOF'
+            set -e
             echo "成功连接服务器：$(whoami)@$(hostname)"
             
-            # 进入项目目录（确保路径正确）
             cd /root/flask-web-app || { echo "项目目录不存在"; exit 1; }
-            
-            # 拉取最新代码、更新依赖、重启服务
             git pull origin main || { echo "Git拉取失败"; exit 1; }
+            
             pip3 install --upgrade pip
             pip3 install -r requirements.txt || { echo "依赖安装失败"; exit 1; }
-            supervisorctl restart flask-web-app || { echo "应用重启失败"; exit 1; }
             
-            # 查看服务状态，确认部署结果
+            supervisorctl restart flask-web-app || { echo "应用重启失败"; exit 1; }
             supervisorctl status flask-web-app
             echo "部署完成"
           EOF
-        # 环境变量：引用GitHub Secrets中的敏感信息
         env:
           TOUGE_SSH_PRIVATE_KEY: ${{ secrets.TOUGE_SSH_PRIVATE_KEY }}
-          TOUGE_SSH_PORT: ${{ secrets.TOUGE_SSH_PORT }}  # 新端口45941
-          TOUGE_SERVER_IP: ${{ secrets.TOUGE_SERVER_IP }}  # 服务器IP47.96.157.89
+          TOUGE_SERVER_IP: ${{ secrets.TOUGE_SERVER_IP }}
