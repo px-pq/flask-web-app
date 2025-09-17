@@ -29,22 +29,38 @@ jobs:
         run: |
           # 配置SSH环境
           mkdir -p ~/.ssh
+          chmod 700 ~/.ssh
           
-          # 写入OpenSSH私钥
-          echo "$TOUGE_SSH_PRIVATE_KEY" > ~/.ssh/id_rsa
-          
-          # 强制设置权限（必须600）
+          # 正确写入私钥 - 使用printf确保格式正确
+          printf "%s" "$TOUGE_SSH_PRIVATE_KEY" > ~/.ssh/id_rsa
           chmod 600 ~/.ssh/id_rsa
+          
+          # 检查私钥格式
+          echo "=== 私钥开头 ==="
+          head -2 ~/.ssh/id_rsa
+          echo "=== 私钥结尾 ==="
+          tail -2 ~/.ssh/id_rsa
+          echo "================"
           
           # 添加服务器到known_hosts
           ssh-keyscan -p 42687 -H 47.96.157.89 >> ~/.ssh/known_hosts
+          chmod 644 ~/.ssh/known_hosts
+          
           echo "SSH环境配置完成，尝试连接服务器..."
           
-          # SSH连接并执行部署命令
+          # 使用sshpass或直接连接（推荐先测试连接）
+          echo "测试SSH连接..."
           ssh -v -p 42687 \
-              -o HostKeyAlgorithms=+ssh-rsa \
-              -o PubkeyAcceptedAlgorithms=+ssh-rsa \
-              -o PreferredAuthentications=publickey \
+              -o BatchMode=yes \
+              -o StrictHostKeyChecking=yes \
+              -o ConnectTimeout=10 \
+              root@47.96.157.89 "echo '连接测试成功'" && echo "连接成功!" || echo "连接失败"
+          
+          # 正式部署
+          echo "开始部署..."
+          ssh -T -p 42687 \
+              -o BatchMode=yes \
+              -o StrictHostKeyChecking=yes \
               root@47.96.157.89 << 'EOF'
                 set -e
                 echo "成功连接服务器：$(whoami)@$(hostname)"
