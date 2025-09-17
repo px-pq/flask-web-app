@@ -31,8 +31,8 @@ jobs:
           mkdir -p ~/.ssh
           chmod 700 ~/.ssh
           
-          # 正确写入私钥 - 使用printf确保格式正确
-          printf "%s" "$TOUGE_SSH_PRIVATE_KEY" > ~/.ssh/id_rsa
+          # 使用base64解码私钥
+          echo "$TOUGE_SSH_PRIVATE_KEY_BASE64" | base64 -d > ~/.ssh/id_rsa
           chmod 600 ~/.ssh/id_rsa
           
           # 检查私钥格式
@@ -48,16 +48,7 @@ jobs:
           
           echo "SSH环境配置完成，尝试连接服务器..."
           
-          # 使用sshpass或直接连接（推荐先测试连接）
-          echo "测试SSH连接..."
-          ssh -v -p 42687 \
-              -o BatchMode=yes \
-              -o StrictHostKeyChecking=yes \
-              -o ConnectTimeout=10 \
-              root@47.96.157.89 "echo '连接测试成功'" && echo "连接成功!" || echo "连接失败"
-          
           # 正式部署
-          echo "开始部署..."
           ssh -T -p 42687 \
               -o BatchMode=yes \
               -o StrictHostKeyChecking=yes \
@@ -76,4 +67,4 @@ jobs:
                 echo "部署完成"
           EOF
         env:
-          TOUGE_SSH_PRIVATE_KEY: ${{ secrets.TOUGE_SSH_PRIVATE_KEY }}
+          TOUGE_SSH_PRIVATE_KEY_BASE64: ${{ secrets.TOUGE_SSH_PRIVATE_KEY_BASE64 }}
