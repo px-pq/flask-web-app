@@ -62,5 +62,5 @@ jobs:
         # 注释掉Secret引用（因为IP已写死，不需要TOUGE_SERVER_IP了）
         env:
           TOUGE_SSH_PRIVATE_KEY: ${{ secrets.TOUGE_SSH_PRIVATE_KEY }}
-          # TOUGE_SERVER_IP: ${{ secrets.TOUGE_SERVER_IP }}  # 注释或删除这行
+
 
