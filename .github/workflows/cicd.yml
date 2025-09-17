@@ -30,22 +30,22 @@ jobs:
           # 配置SSH环境（无需改私钥，保持原格式）
           mkdir -p ~/.ssh
           
-          # 写入OpenSSH新格式私钥（printf确保格式完整，不破坏新格式结构）
+          # 写入OpenSSH新格式私钥（引用Secret，这部分之前没问题）
           printf "%s\n" "${{ secrets.TOUGE_SSH_PRIVATE_KEY }}" > ~/.ssh/id_rsa
           
-          # 强制设置权限（SSH协议硬性要求，新格式私钥也需此权限）
+          # 强制设置权限（必须600）
           chmod 600 ~/.ssh/id_rsa
           
-          # 扫描主机密钥（提前信任服务器，避免交互）
-          ssh-keyscan -p 42687 -H ${{ secrets.TOUGE_SERVER_IP }} >> ~/.ssh/known_hosts
+          # 关键修改1：直接写死IP 47.96.157.89，不引用Secret
+          ssh-keyscan -p 42687 -H 47.96.157.89 >> ~/.ssh/known_hosts
           echo "SSH环境配置完成，尝试连接服务器..."
           
-          # 关键修改：添加 -o PreferredAuthentications=publickey 解析新格式私钥
+          # 关键修改2：直接写死IP 47.96.157.89，不引用Secret
           ssh -v -p 42687 \
               -o HostKeyAlgorithms=+ssh-rsa \
               -o PubkeyAcceptedAlgorithms=+ssh-rsa \
-              -o PreferredAuthentications=publickey \  # 新增：强制用OpenSSH原生逻辑解析新格式私钥
-              root@${{ secrets.TOUGE_SERVER_IP }} << 'EOF'
+              -o PreferredAuthentications=publickey \
+              root@47.96.157.89 << 'EOF'  # 这里直接写IP，不要用${{ secrets... }}
                 set -e
                 echo "成功连接服务器：$(whoami)@$(hostname)"
                 
@@ -59,7 +59,8 @@ jobs:
                 supervisorctl status flask-web-app
                 echo "部署完成"
           EOF
+        # 注释掉Secret引用（因为IP已写死，不需要TOUGE_SERVER_IP了）
         env:
           TOUGE_SSH_PRIVATE_KEY: ${{ secrets.TOUGE_SSH_PRIVATE_KEY }}
-          TOUGE_SERVER_IP: ${{ secrets.TOUGE_SERVER_IP }}
+          # TOUGE_SERVER_IP: ${{ secrets.TOUGE_SERVER_IP }}  # 注释或删除这行
 
