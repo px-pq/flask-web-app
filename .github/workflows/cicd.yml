@@ -49,31 +49,31 @@ jobs:
                 set -e
                 echo "成功连接服务器：$(whoami)@$(hostname)"
                 
-                cd /root/flask-web-app || { echo "项目目录不存在"; exit 1; }
-                
-                # 方法1：先检查网络连通性
-                echo "测试网络连接..."
-                if ! ping -c 3 github.com &> /dev/null; then
-                    echo "网络连接问题，尝试使用git@github.com SSH方式"
-                    # 方法2：使用SSH方式拉取
-                    git remote set-url origin git@github.com:px-pq/flask-web-app.git
+                # 添加GitHub的SSH主机密钥到known_hosts
+                mkdir -p ~/.ssh
+                chmod 700 ~/.ssh
+                if ! grep -q "github.com" ~/.ssh/known_hosts 2>/dev/null; then
+                    echo "添加GitHub SSH主机密钥..."
+                    ssh-keyscan github.com >> ~/.ssh/known_hosts
+                    chmod 644 ~/.ssh/known_hosts
                 fi
                 
-                # 方法3：设置Git重试机制
-                for i in {1..3}; do
-                    echo "尝试第 $i 次拉取代码..."
-                    if git pull origin main; then
-                        echo "代码拉取成功"
-                        break
-                    else
-                        echo "第 $i 次拉取失败，等待3秒后重试..."
-                        sleep 3
-                        if [ $i -eq 3 ]; then
-                            echo "所有重试都失败，请检查网络连接"
-                            exit 1
-                        fi
-                    fi
-                done
+                cd /root/flask-web-app || { echo "项目目录不存在"; exit 1; }
+                
+                # 设置Git用户信息（避免警告）
+                git config --global user.email "action@github.com"
+                git config --global user.name "GitHub Action"
+                
+                # 使用SSH方式拉取
+                echo "使用SSH方式拉取代码..."
+                git remote set-url origin git@github.com:px-pq/flask-web-app.git
+                
+                # 拉取代码
+                if ! git pull origin main; then
+                    echo "Git拉取失败，尝试强制重置..."
+                    git fetch --all
+                    git reset --hard origin/main
+                fi
                 
                 pip3 install --upgrade pip
                 pip3 install -r requirements.txt || { echo "依赖安装失败"; exit 1; }
