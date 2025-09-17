@@ -35,13 +35,6 @@ jobs:
           echo "$TOUGE_SSH_PRIVATE_KEY_BASE64" | base64 -d > ~/.ssh/id_rsa
           chmod 600 ~/.ssh/id_rsa
           
-          # 检查私钥格式
-          echo "=== 私钥开头 ==="
-          head -2 ~/.ssh/id_rsa
-          echo "=== 私钥结尾 ==="
-          tail -2 ~/.ssh/id_rsa
-          echo "================"
-          
           # 添加服务器到known_hosts
           ssh-keyscan -p 42687 -H 47.96.157.89 >> ~/.ssh/known_hosts
           chmod 644 ~/.ssh/known_hosts
@@ -57,7 +50,30 @@ jobs:
                 echo "成功连接服务器：$(whoami)@$(hostname)"
                 
                 cd /root/flask-web-app || { echo "项目目录不存在"; exit 1; }
-                git pull origin main || { echo "Git拉取失败"; exit 1; }
+                
+                # 方法1：先检查网络连通性
+                echo "测试网络连接..."
+                if ! ping -c 3 github.com &> /dev/null; then
+                    echo "网络连接问题，尝试使用git@github.com SSH方式"
+                    # 方法2：使用SSH方式拉取
+                    git remote set-url origin git@github.com:px-pq/flask-web-app.git
+                fi
+                
+                # 方法3：设置Git重试机制
+                for i in {1..3}; do
+                    echo "尝试第 $i 次拉取代码..."
+                    if git pull origin main; then
+                        echo "代码拉取成功"
+                        break
+                    else
+                        echo "第 $i 次拉取失败，等待3秒后重试..."
+                        sleep 3
+                        if [ $i -eq 3 ]; then
+                            echo "所有重试都失败，请检查网络连接"
+                            exit 1
+                        fi
+                    fi
+                done
                 
                 pip3 install --upgrade pip
                 pip3 install -r requirements.txt || { echo "依赖安装失败"; exit 1; }
